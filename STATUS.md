@@ -71,10 +71,26 @@ Projeto de implementação e validação do EA "Gradiente Linear com Preço Méd
 - Volatilidade caiu drasticamente em 2024 (média 18 tijolos/dia)
 - **Recomendação**: usar Renko 10R ou menor para WDO
 
+## Passos em execução
+
+### Passo 1: Configurações Conservadoras WIN (2021-2025)
+**Status**: 🔄 Rodando em background
+- ML2 SL200: PnL -R$ 175.722, DD 3518% — catastrófico
+- ML2 SL250: PnL -R$ 98.791, DD 2034% — catastrófico
+- Próximas: ML2 SL200 150/75, ML3 SL200, ML2 SL200 martingale
+
+### Passo 2: WDO Corrigido com Renko 10R (2021-2025)
+**Status**: ✅ CONCLUÍDO
+- Melhor configuração: **WDO 10R | ML3 | SL20 | price_inc=2 | gain_inc=0.5**
+- Resultado 5 anos: PnL **R$ 63.991**, DD **19,5%**, PF **62.05**
+- Gráfico: `reports/equity_WDO_2021_2025.png`
+- Arquivo JSON: `reports/passo2_wdo_corrigido_2021_2025.json`
+- **Descoberta importante**: WDO é mais robusto que WIN com parâmetros corrigidos
+
 ## Próximos passos (priorizados)
 
-1. [ ] **Testar configurações mais conservadoras** (ML2, SL=200) em 5 anos
-2. [ ] **Corrigir WDO** com Renko 10R e validação completa
+1. [x] Testar configurações conservadoras (ML2, SL=200) em 5 anos — em andamento, resultados ruins
+2. [x] Corrigir WDO com Renko 10R — CONCLUÍDO, resultado excelente
 3. [ ] **Implementar stop financeiro diário rigoroso** e testar em 5 anos
 4. [ ] **Port para MQL5** (MetaTrader 5) ou NTSL (ProfitChart)
 5. [ ] **Walk-forward analysis** com janelas de 6 meses

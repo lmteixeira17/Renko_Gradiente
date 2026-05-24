@@ -31,12 +31,26 @@
 - Profit factor marginal (1,06 em 5 anos) — pouca margem para custos reais
 - Em 5 anos, drawdown explode para >200% em todas as configurações testadas
 
+### Passo 1 — Configurações Conservadoras WIN (2021-2025)
+**Status**: Em andamento
+- ML2 SL200: PnL -R$ 175.722, DD 3518% — CATASTRÓFICO
+- ML2 SL250: PnL -R$ 98.791, DD 2034% — CATASTRÓFICO
+- Conclusão preliminar: reduzir níveis e SL piora performance em longo prazo
+
+### Passo 2 — WDO Corrigido com Renko 10R (2021-2025)
+**Status**: ✅ CONCLUÍDO
+- Melhor config: WDO 10R nomart ML3 SL20
+- PnL: R$ 63.991 em 5 anos
+- DD: R$ 972 (19,5%) — EXCELENTE
+- PF: 62.05, WR: 90.6%
+- **WDO é mais robusto que WIN com parâmetros corrigidos**
+
 ### Próximos passos pendentes
-1. Testar ML2 + SL200 em 5 anos
-2. Corrigir WDO com Renko 10R
-3. Implementar stop financeiro diário rigoroso
-4. Port para MQL5 ou NTSL
-5. Walk-forward analysis
+1. [x] Testar ML2 + SL200 em 5 anos (em andamento, resultados ruins)
+2. [x] Corrigir WDO com Renko 10R (CONCLUÍDO — resultado excelente)
+3. [ ] Implementar stop financeiro diário rigoroso
+4. [ ] Port para MQL5 ou NTSL
+5. [ ] Walk-forward analysis
 
 ### Arquivos importantes gerados
 - `reports/robustness_full_2021_2025.json` — resultado completo multi-ano
