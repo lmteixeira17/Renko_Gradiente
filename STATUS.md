@@ -8,7 +8,7 @@ Projeto de implementação e validação do EA "Gradiente Linear com Preço Méd
 
 ### Fase atual
 ✅ **Fase 1 — Backtest e Validação** concluída  
-✅ **Fase 2 — Port para MQL5** em andamento
+✅ **Fase 2 — Port para MQL5** concluída
 
 ## O que foi entregue
 
@@ -32,7 +32,7 @@ Projeto de implementação e validação do EA "Gradiente Linear com Preço Méd
 - [x] `backtest/passo3_stop_diario.py` — teste de stop financeiro diário
 
 ### Port MQL5
-- [x] `mql5/EA_Gradiente_Renko.mq5` — EA completo para MetaTrader 5
+- [x] `mql5/EA_Gradiente_Renko.mq5` — EA completo para MetaTrader 5 (~994 linhas)
 - [x] `mql5/README_MQL5.md` — documentação de instalação e uso
 
 ### Resultados de backtest obtidos
@@ -45,6 +45,7 @@ Projeto de implementação e validação do EA "Gradiente Linear com Preço Méd
 | `reports/equity_WIN_2023_2024.png` | Gráfico de equity 2023-2024 |
 | `reports/passo2_wdo_corrigido_2021_2025.json` | Resultado WDO 10R 5 anos |
 | `reports/equity_WDO_2021_2025.png` | Gráfico de equity WDO 2021-2025 |
+| `reports/passo3_stop_diario_2021_2025.json` | Resultado stop diário 5 anos |
 
 ## Resultados principais
 
@@ -90,15 +91,31 @@ Projeto de implementação e validação do EA "Gradiente Linear com Preço Méd
 - Net PnL: **R$ 63.992**
 - Max Drawdown: **R$ 4.782 (19,5%)**
 
+### 🔴 Descoberta CRÍTICA — Stop Diário é ESSENCIAL (Passo 3)
+
+Teste de stop financeiro diário em WIN 25R ML3 SL300 (2021-2025):
+
+| Stop Diário | PnL | DD | R/DD | PF | WR |
+|-------------|-----|-----|------|-----|-----|
+| **R$ 100** | **R$ 25.111** | **109.3%** | **4.59** | 1.15 | 97.6% |
+| R$ 200 | R$ 29.941 | 137.7% | 4.35 | 1.14 | 97.5% |
+| R$ 300 | R$ 27.844 | 150.6% | 3.70 | 1.12 | 97.5% |
+| R$ 500 | R$ 22.419 | 209.4% | 2.14 | 1.08 | 97.4% |
+| R$ 750 | R$ 16.560 | 300.7% | 1.10 | 1.06 | 97.4% |
+| R$ 1000 | R$ 11.619 | 385.5% | 0.60 | 1.04 | 97.3% |
+| **Sem stop** | **-R$ 2.230** | **625.2%** | **-0.07** | 0.99 | 97.2% |
+
+**Conclusão**: Sem stop diário, o EA é **inviável no longo prazo** (DD 625%, PnL negativo). O stop de R$100/dia oferece o melhor Return/DD ratio (4.59), sendo **65x melhor** que sem stop.
+
 ### Alerta crítico — 5 anos
-- Em 2021-2025, **TODAS** as configurações WIN conservadoras apresentaram drawdown > 1800%
+- Em 2021-2025, **TODAS** as configurações WIN conservadoras (ML2, SL apertado) apresentaram drawdown > 1800%
 - Martingale é o fator de risco dominante
 - Configuração sem Martingale é a única viável para capital de R$ 5.000
 
-## Passos em execução
+## Passos concluídos
 
 ### Passo 1: Configurações Conservadoras WIN (2021-2025)
-**Status**: ❌ PARADO (evidência suficiente de inviabilidade)
+**Status**: ❌ PARADO — evidência suficiente de inviabilidade
 - ML2 SL200: PnL -R$ 175.722, DD 3518% — catastrófico
 - ML2 SL250: PnL -R$ 98.791, DD 2034% — catastrófico
 - ML3 SL200: PnL -R$ 84.690, DD 1817% — catastrófico
@@ -108,40 +125,26 @@ Projeto de implementação e validação do EA "Gradiente Linear com Preço Méd
 **Status**: ✅ CONCLUÍDO
 - Melhor configuração: **WDO 10R | ML3 | SL20 | price_inc=2 | gain_inc=0.5**
 - Resultado 5 anos: PnL **R$ 63.992**, DD **19,5%**, PF **62.05**
-- Gráfico: `reports/equity_WDO_2021_2025.png`
-- Arquivo JSON: `reports/passo2_wdo_corrigido_2021_2025.json`
-- **Descoberta importante**: WDO é mais robusto que WIN com parâmetros corrigidos
+- **Descoberta**: WDO é mais robusto que WIN com parâmetros corrigidos
 
 ### Passo 3: Stop Financeiro Diário (2021-2025)
-**Status**: 🔄 RODANDO em background
-- Testando stops diários: R$ 100, 200, 300, 500, 750, 1000, sem stop
-- Resultado parcial (stop R$ 100): PnL R$ 25.111, DD 109,3% (pior que baseline)
-- Resultado completo pendente
+**Status**: ✅ CONCLUÍDO
+- Stop R$100/dia é o vencedor absoluto (R/DD = 4.59)
+- Sem stop = catástrofe (DD 625%, PnL negativo)
+- Resultado: `reports/passo3_stop_diario_2021_2025.json`
 
 ### Passo 4: Port para MQL5
 **Status**: ✅ CONCLUÍDO
 - EA completo: `mql5/EA_Gradiente_Renko.mq5` (~994 linhas)
-- Features implementadas:
-  - Construtor Renko incremental tick-a-tick
-  - EMA, MACD, 2MV calculados em tempo real
-  - Sinais de entrada com pullback + confirmação
-  - Gradient levels com martingale/no-martingale
-  - Ordens limit (OCO style)
-  - Stop loss fixo, target reativo, trailing stop
-  - Stop financeiro diário
-  - Fechamento no final do dia (day trade)
-  - OnTester() para otimização no Strategy Tester
+- Features: Renko incremental, EMA/MACD/2MV, sinais, gradient levels, limit orders, SL/target/trailing, stop diário, fechamento EOD, OnTester()
 - Documentação: `mql5/README_MQL5.md`
 
-## Próximos passos (priorizados)
+## Próximos passos (recomendações futuras)
 
-1. [x] Testar configurações conservadoras (ML2, SL=200) em 5 anos — PARADO, resultados ruins
-2. [x] Corrigir WDO com Renko 10R — CONCLUÍDO, resultado excelente
-3. [ ] **Aguardar conclusão do Passo 3** (stop financeiro diário)
-4. [x] **Port para MQL5** — CONCLUÍDO
-5. [ ] **Testar EA MQL5 em conta demo**
-6. [ ] **Walk-forward analysis** com janelas de 6 meses
-7. [ ] **Gerar mais visualizações** (drawdown por mês, distribuição de trades)
+1. [ ] **Testar EA MQL5 em conta demo** no MetaTrader 5
+2. [ ] **Walk-forward analysis** com janelas de 6 meses
+3. [ ] **Gerar mais visualizações** (drawdown por mês, distribuição de trades)
+4. [ ] **Testar stop diário no WDO** para confirmar robustez
 
 ## Dependências
 

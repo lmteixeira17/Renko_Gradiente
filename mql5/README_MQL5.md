@@ -121,10 +121,25 @@ The EA includes `OnTester()` with a custom optimization criterion:
 
 ## Warnings
 
+- **STOP DIÁRIO É ESSENCIAL** - Sem stop diário, o EA tem DD 625% e PnL negativo em 5 anos. Recomendado: R$100-200/dia
 - **Martingale is NOT recommended** - backtests show DD > 2000% over 5 years
 - **Always use `InpCloseAtEndDay = true`** for day trading
 - **Test on demo account first** before live trading
 - **Minimum capital**: R$ 5,000 for WIN with no martingale
+
+## Critical Discovery - Daily Stop (Passo 3 Results)
+
+Backtest over 5 years (2021-2025) on WIN proves that daily financial stop is **mandatory**:
+
+| Daily Stop | PnL | Drawdown | Return/DD |
+|------------|-----|----------|-----------|
+| R$ 100 | R$ 25,111 | 109% | **4.59** |
+| R$ 200 | R$ 29,941 | 138% | 4.35 |
+| R$ 300 | R$ 27,844 | 151% | 3.70 |
+| R$ 500 | R$ 22,419 | 209% | 2.14 |
+| None | **-R$ 2,230** | **625%** | **-0.07** |
+
+**Recommendation**: Use `InpDailyStopLoss = 100.0` for best risk-adjusted returns.
 
 ## Backtest Results (Reference)
 
