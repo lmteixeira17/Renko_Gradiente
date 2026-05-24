@@ -8,7 +8,7 @@ Projeto de implementação e validação do EA "Gradiente Linear com Preço Méd
 
 ### Fase atual
 ✅ **Fase 1 — Backtest e Validação** concluída  
-⏳ **Fase 2 — Port para plataforma de trading** pendente
+✅ **Fase 2 — Port para MQL5** em andamento
 
 ## O que foi entregue
 
@@ -27,6 +27,13 @@ Projeto de implementação e validação do EA "Gradiente Linear com Preço Méd
 - [x] `backtest/validate_full.py` — validação robusta multi-ano
 - [x] `backtest/optimize_params.py` — otimização de parâmetros (grid search)
 - [x] `backtest/plot_equity.py` — geração de gráficos de equity
+- [x] `backtest/passo1_conservadoras.py` — teste de configs conservadoras
+- [x] `backtest/passo2_wdo_corrigido.py` — validação WDO com Renko 10R
+- [x] `backtest/passo3_stop_diario.py` — teste de stop financeiro diário
+
+### Port MQL5
+- [x] `mql5/EA_Gradiente_Renko.mq5` — EA completo para MetaTrader 5
+- [x] `mql5/README_MQL5.md` — documentação de instalação e uso
 
 ### Resultados de backtest obtidos
 | Arquivo | Descrição |
@@ -36,6 +43,8 @@ Projeto de implementação e validação do EA "Gradiente Linear com Preço Méd
 | `reports/robustness_quick_2023_2024.json` | Validação rápida 6 configs |
 | `reports/robustness_full_2021_2025.json` | Validação robusta 9 configs multi-ano |
 | `reports/equity_WIN_2023_2024.png` | Gráfico de equity 2023-2024 |
+| `reports/passo2_wdo_corrigido_2021_2025.json` | Resultado WDO 10R 5 anos |
+| `reports/equity_WDO_2021_2025.png` | Gráfico de equity WDO 2021-2025 |
 
 ## Resultados principais
 
@@ -60,41 +69,79 @@ Projeto de implementação e validação do EA "Gradiente Linear com Preço Méd
 - Net PnL: **R$ 19.372**
 - Max Drawdown: **R$ 1.373 (27,5%)**
 
+### WDO — Melhor configuração (2021-2025)
+```json
+{
+  "renko_r": 10,
+  "max_levels": 3,
+  "martingale": false,
+  "price_increment": 2.0,
+  "gain_increment": 0.5,
+  "stop_loss_pts": 20.0,
+  "slippage_pts": 2.0,
+  "emolumentos_pct": 0.0001
+}
+```
+
+**Métricas**:
+- Trades: 58.085
+- Win Rate: 90,6%
+- Profit Factor: 62,05
+- Net PnL: **R$ 63.992**
+- Max Drawdown: **R$ 4.782 (19,5%)**
+
 ### Alerta crítico — 5 anos
-- Em 2021-2025, **TODAS** as configurações WIN apresentaram drawdown > 200%
+- Em 2021-2025, **TODAS** as configurações WIN conservadoras apresentaram drawdown > 1800%
 - Martingale é o fator de risco dominante
 - Configuração sem Martingale é a única viável para capital de R$ 5.000
-
-### WDO — Problema identificado
-- Renko 15R gera poucos tijolos/dia (~20-64)
-- Apenas dias com >73 tijolos produzem sinais (viés de seleção)
-- Volatilidade caiu drasticamente em 2024 (média 18 tijolos/dia)
-- **Recomendação**: usar Renko 10R ou menor para WDO
 
 ## Passos em execução
 
 ### Passo 1: Configurações Conservadoras WIN (2021-2025)
-**Status**: 🔄 Rodando em background
+**Status**: ❌ PARADO (evidência suficiente de inviabilidade)
 - ML2 SL200: PnL -R$ 175.722, DD 3518% — catastrófico
 - ML2 SL250: PnL -R$ 98.791, DD 2034% — catastrófico
-- Próximas: ML2 SL200 150/75, ML3 SL200, ML2 SL200 martingale
+- ML3 SL200: PnL -R$ 84.690, DD 1817% — catastrófico
+- **Conclusão**: Reduzir níveis ou apertar stop piora drasticamente o desempenho de longo prazo
 
 ### Passo 2: WDO Corrigido com Renko 10R (2021-2025)
 **Status**: ✅ CONCLUÍDO
 - Melhor configuração: **WDO 10R | ML3 | SL20 | price_inc=2 | gain_inc=0.5**
-- Resultado 5 anos: PnL **R$ 63.991**, DD **19,5%**, PF **62.05**
+- Resultado 5 anos: PnL **R$ 63.992**, DD **19,5%**, PF **62.05**
 - Gráfico: `reports/equity_WDO_2021_2025.png`
 - Arquivo JSON: `reports/passo2_wdo_corrigido_2021_2025.json`
 - **Descoberta importante**: WDO é mais robusto que WIN com parâmetros corrigidos
 
+### Passo 3: Stop Financeiro Diário (2021-2025)
+**Status**: 🔄 RODANDO em background
+- Testando stops diários: R$ 100, 200, 300, 500, 750, 1000, sem stop
+- Resultado parcial (stop R$ 100): PnL R$ 25.111, DD 109,3% (pior que baseline)
+- Resultado completo pendente
+
+### Passo 4: Port para MQL5
+**Status**: ✅ CONCLUÍDO
+- EA completo: `mql5/EA_Gradiente_Renko.mq5` (~994 linhas)
+- Features implementadas:
+  - Construtor Renko incremental tick-a-tick
+  - EMA, MACD, 2MV calculados em tempo real
+  - Sinais de entrada com pullback + confirmação
+  - Gradient levels com martingale/no-martingale
+  - Ordens limit (OCO style)
+  - Stop loss fixo, target reativo, trailing stop
+  - Stop financeiro diário
+  - Fechamento no final do dia (day trade)
+  - OnTester() para otimização no Strategy Tester
+- Documentação: `mql5/README_MQL5.md`
+
 ## Próximos passos (priorizados)
 
-1. [x] Testar configurações conservadoras (ML2, SL=200) em 5 anos — em andamento, resultados ruins
+1. [x] Testar configurações conservadoras (ML2, SL=200) em 5 anos — PARADO, resultados ruins
 2. [x] Corrigir WDO com Renko 10R — CONCLUÍDO, resultado excelente
-3. [ ] **Implementar stop financeiro diário rigoroso** e testar em 5 anos
-4. [ ] **Port para MQL5** (MetaTrader 5) ou NTSL (ProfitChart)
-5. [ ] **Walk-forward analysis** com janelas de 6 meses
-6. [ ] **Gerar mais visualizações** (drawdown por mês, distribuição de trades)
+3. [ ] **Aguardar conclusão do Passo 3** (stop financeiro diário)
+4. [x] **Port para MQL5** — CONCLUÍDO
+5. [ ] **Testar EA MQL5 em conta demo**
+6. [ ] **Walk-forward analysis** com janelas de 6 meses
+7. [ ] **Gerar mais visualizações** (drawdown por mês, distribuição de trades)
 
 ## Dependências
 
@@ -116,6 +163,7 @@ Backtest utiliza dados tick-a-tick BTP de `C:\HIST_B3\generator_v3` (v3.2):
 ## Links
 
 - Especificação: `ea_gradiente_renko.agent.final.pdf`
+- Repositório GitHub: `https://github.com/lmteixeira17/Renko_Gradiente`
 - Relatórios `_Testes_e_Padroes`:
   - `relatorios/2026-05-24_renko_gradiente_validacao.md`
   - `relatorios/2026-05-24_renko_gradiente_validacao_multi_ano.md`
