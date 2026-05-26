@@ -30,6 +30,8 @@ def _simulate_day(
     max_trades_per_day: int,
     start_time_ms: int,
     end_time_ms: int,
+    force_close_eod: bool,
+    force_close_daily_stop: bool,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     max_trades = 2000
     entry_times = np.empty(max_trades, dtype=np.int64)
@@ -59,13 +61,82 @@ def _simulate_day(
     n_levels = 0
 
     last_processed_brick = -1
+    forced_close_done = False
 
     for i in range(len(prices)):
         price = prices[i]
         time_ms = times[i]
 
+        # EOD force-close: at end of trading window, close any open position at market
+        if force_close_eod and not forced_close_done and time_ms > end_time_ms and direction != 0 and position_qty > 0:
+            exit_p = price
+            if direction == 1:
+                exit_p = price - slippage_pts
+                pnl = (exit_p - avg_price) * position_qty * tick_value
+            else:
+                exit_p = price + slippage_pts
+                pnl = (avg_price - exit_p) * position_qty * tick_value
+            financial_value_entry = avg_price * position_qty * tick_value
+            financial_value_exit = exit_p * position_qty * tick_value
+            pnl -= (financial_value_entry + financial_value_exit) * emolumentos_pct
+            if trade_count < max_trades:
+                entry_times[trade_count] = 0
+                exit_times[trade_count] = time_ms
+                entry_prices[trade_count] = avg_price
+                exit_prices[trade_count] = exit_p
+                qtys[trade_count] = position_qty
+                pnls[trade_count] = pnl
+                directions[trade_count] = direction
+                reasons[trade_count] = 3  # EOD reason
+                trade_count += 1
+            daily_pnl += pnl
+            direction = 0
+            position_qty = 0
+            position_cost = 0.0
+            avg_price = 0.0
+            target_price = 0.0
+            stop_price = 0.0
+            highest_profit = 0.0
+            breakeven_stop = False
+            n_levels = 0
+            forced_close_done = True
+
         # Time filter
         if time_ms < start_time_ms or time_ms > end_time_ms:
+            continue
+
+        # Daily stop force-close: if open position and daily stop already hit, close it
+        if force_close_daily_stop and direction != 0 and position_qty > 0 and daily_pnl <= -daily_stop_loss:
+            exit_p = price
+            if direction == 1:
+                exit_p = price - slippage_pts
+                pnl = (exit_p - avg_price) * position_qty * tick_value
+            else:
+                exit_p = price + slippage_pts
+                pnl = (avg_price - exit_p) * position_qty * tick_value
+            financial_value_entry = avg_price * position_qty * tick_value
+            financial_value_exit = exit_p * position_qty * tick_value
+            pnl -= (financial_value_entry + financial_value_exit) * emolumentos_pct
+            if trade_count < max_trades:
+                entry_times[trade_count] = 0
+                exit_times[trade_count] = time_ms
+                entry_prices[trade_count] = avg_price
+                exit_prices[trade_count] = exit_p
+                qtys[trade_count] = position_qty
+                pnls[trade_count] = pnl
+                directions[trade_count] = direction
+                reasons[trade_count] = 4  # daily-stop reason
+                trade_count += 1
+            daily_pnl += pnl
+            direction = 0
+            position_qty = 0
+            position_cost = 0.0
+            avg_price = 0.0
+            target_price = 0.0
+            stop_price = 0.0
+            highest_profit = 0.0
+            breakeven_stop = False
+            n_levels = 0
             continue
 
         bidx = brick_idx[i]
@@ -278,6 +349,8 @@ def simulate_day_fast(
     max_trades_per_day: int = 0,
     start_time_ms: int = 0,
     end_time_ms: int = 86400000,
+    force_close_eod: bool = False,
+    force_close_daily_stop: bool = False,
 ):
     return _simulate_day(
         prices, times, brick_idx, entry_signals,
@@ -286,4 +359,5 @@ def simulate_day_fast(
         slippage_pts, emolumentos_pct,
         preservation_stop, preservation_levels, trailing_stop_value,
         daily_stop_loss, max_trades_per_day, start_time_ms, end_time_ms,
+        force_close_eod, force_close_daily_stop,
     )

@@ -62,9 +62,19 @@ python backtest/run_backtest_annual.py
 - **Renko builder**: implementação Nelogica-style (reversão requer 2× brick size)
 - **Custos de transação**: slippage fixo em pontos + emolumentos % sobre valor financeiro
 - **Horário**: filtrável via `start_time_ms` / `end_time_ms` na simulação Numba
+- **EOD force-close**: engine Numba tem `force_close_eod` e `force_close_daily_stop` (defaults `False` por compat). Scripts NOVOS devem passar `True` para paridade com MQL5. Sem isso, posições abertas após `end_time_ms` são silenciosamente descartadas (bug histórico — ver STATUS).
+
+## CAVEAT CRÍTICO — Viés do dataset sintético (LER ANTES de interpretar números)
+
+- **Apenas 2026 são ticks REAIS** (86 dias coletados via ProfitDLL). 2021-2025 são **sintéticos**: OHLC M1 real do MT5 + ticks gerados via random walk com microestrutura condicional calibrada nos 86 dias reais de 2026.
+- **Bias medido para essa estratégia (2026-05-26)**: gerando versão sintética dos mesmos 79 dias reais de 2026 (mesmo OHLC), o EA G72/SL0,30%/DS75 produziu PnL +R$ 3.968 (sintético) vs -R$ 8.789 (real). **Delta R$ 12.758 em 79 dias → ~R$ 40k/ano de sobre-estimação**.
+- **Causa**: ticks sintéticos têm path intra-minuto mais oscilatório que real, criando ~2× mais Renko bricks (R=25, brick 120pts). Estratégia path-dependent com Renko grosso é o pior caso.
+- **Implicação**: PnL acumulado reportado em 2021-2025 sintético deve ser interpretado como **otimista por ordem de magnitude**. Ranking RELATIVO entre configs (G72 > G80 etc) ainda preserva. Magnitudes absolutas só são confiáveis em 2026 (real).
+- **Validação**: comparação detalhada em `reports/compare_real_vs_syn_2026.json`.
 
 ## Contato e contexto
 
 - Projeto faz parte do ecossistema `EA-Trading` em `D:\_Projetos\EA-Trading\10_PROJETOS_EA\`
 - Central de acompanhamento: `_Testes_e_Padroes` (somente leitura para este projeto)
-- Dataset BTP: `C:\HIST_B3\generator_v3` (mantido por outro processo)
+- Dataset BTP: `C:\HIST_B3\generator_v3` (mantido por outro processo). 2026 real, 2021-2025 sintético — ver caveat acima.
+- Gerador: `D:\_Projetos\EA-Trading\20_INFRA_E_DADOS\ProfitDLL_Coletor` (ler-only deste projeto)

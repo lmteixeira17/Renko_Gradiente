@@ -167,6 +167,8 @@ def run_day_fast(asset: str, day: str, config: dict) -> BacktestResult:
         max_trades_per_day=config.get("max_trades_per_day", 0),
         start_time_ms=config.get("start_time_ms", 0),
         end_time_ms=config.get("end_time_ms", 86400000),
+        force_close_eod=config.get("force_close_eod", False),
+        force_close_daily_stop=config.get("force_close_daily_stop", False),
     )
 
     pkt.close()
