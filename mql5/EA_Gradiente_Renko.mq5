@@ -25,17 +25,28 @@ input int      InpMinBricksSignal = 2;             // Min consecutive bricks for
 input group "=== Gradient Settings ==="
 input int      InpBaseQty         = 1;             // Base quantity per level
 input double   InpPriceIncrement  = 100.0;         // Price increment between levels (pts)
-input double   InpGainIncrement  = 50.0;         // Gain increment above avg price (pts)
+input double   InpGainIncrement  = 72.0;         // Gain increment above avg price (pts)
 input int      InpMaxLevels       = 3;             // Max levels (ML)
 input bool     InpUseMartingale   = false;         // Use martingale (1-2-4-8...)
 
+input group "=== Adaptive Gain Settings ==="
+input bool     InpUseAdaptiveGain = false;         // Enable adaptive gain
+input double   InpGainLateral     = 50.0;          // Gain for sideways market (pts)
+input double   InpGainTrend       = 100.0;         // Gain for trending market (pts)
+input int      InpTrendBricks     = 3;             // Consecutive bricks for trend detection
+
 input group "=== Risk Management ==="
-input double   InpStopLossPts     = 300.0;         // Stop loss in points
-input double   InpDailyStopLoss   = 999999.0;      // Daily financial stop (R$)
+input double   InpStopLossPts     = 0.0;           // Stop loss in points (0 = use %)
+input double   InpStopLossPct     = 0.003;         // Stop loss as % of price (0.003 = 0.3%)
+input double   InpDailyStopLoss   = 75.0;          // Daily financial stop (R$)
 input bool     InpTrailingStop    = false;         // Enable trailing stop
 input double   InpTrailingValue   = 20.0;          // Trailing stop value (R$)
 input bool     InpPreservationStop= false;         // Enable preservation stop
 input int      InpPreservationLvls= 3;             // Preservation stop after N levels
+input int      InpMaxTradesPerDay = 0;             // Max trades per day (0 = unlimited)
+input double   InpMaxEMADistance  = 0.0;           // Max EMA distance filter (pts, 0 = off)
+input double   InpEMADistML2      = 0.0;           // EMA dist threshold for ML2 (0 = off)
+input double   InpEMADistML1      = 0.0;           // EMA dist threshold for ML1 (0 = off)
 
 input group "=== Filters ==="
 input bool     InpUseMACD         = true;          // Use MACD filter
@@ -112,6 +123,9 @@ double         g_totalPnL = 0.0;
 double         g_peakEquity = 0.0;
 double         g_maxDrawdown = 0.0;
 int            g_nTrades = 0;
+int            g_dayTradeCount = 0;
+PendingOrder   g_pendingOrders[];
+int            g_pendingCount = 0;
 int            g_nWins = 0;
 int            g_nLosses = 0;
 double         g_grossProfit = 0.0;
@@ -255,6 +269,7 @@ void OnNewDay()
 {
    g_dailyPnL = 0.0;
    g_dayStopped = false;
+   g_dayTradeCount = 0;
    Print("New day started. Daily PnL reset.");
 }
 
@@ -463,9 +478,9 @@ ENUM_TRADE_DIRECTION CheckEntrySignal(int brickIdx)
    //--- Condition 2: 2MV color
    if(InpUse2MV)
    {
-      string color = g_2mvColors[brickIdx];
-      if(side == DIR_LONG && color != "green") return DIR_FLAT;
-      if(side == DIR_SHORT && color != "red") return DIR_FLAT;
+      string brickColor = g_2mvColors[brickIdx];
+      if(side == DIR_LONG && brickColor != "green") return DIR_FLAT;
+      if(side == DIR_SHORT && brickColor != "red") return DIR_FLAT;
    }
    
    //--- Condition 3: MACD histogram
@@ -497,6 +512,18 @@ ENUM_TRADE_DIRECTION CheckEntrySignal(int brickIdx)
          return side;
    }
    
+   //--- Condition 5: Max trades per day
+   if(InpMaxTradesPerDay > 0 && g_dayTradeCount >= InpMaxTradesPerDay)
+      return DIR_FLAT;
+   
+   //--- Condition 6: EMA distance filter
+   if(InpMaxEMADistance > 0 && ArraySize(g_ema21) > brickIdx && ArraySize(g_ema72) > brickIdx)
+   {
+      double dist = MathAbs(g_ema21[brickIdx] - g_ema72[brickIdx]);
+      if(dist > InpMaxEMADistance)
+         return DIR_FLAT;
+   }
+   
    return DIR_FLAT;
 }
 
@@ -509,8 +536,20 @@ void StartGradient(ENUM_TRADE_DIRECTION dir, double anchorPrice)
    ResetPosition();
    g_direction = dir;
    
+   //--- Determine effective max levels (dynamic based on EMA distance)
+   int effectiveLevels = InpMaxLevels;
+   if(ArraySize(g_ema21) > 0 && ArraySize(g_ema72) > 0)
+   {
+      int lastIdx = ArraySize(g_ema21) - 1;
+      double dist = MathAbs(g_ema21[lastIdx] - g_ema72[lastIdx]);
+      if(InpEMADistML1 > 0 && dist > InpEMADistML1)
+         effectiveLevels = 1;
+      else if(InpEMADistML2 > 0 && dist > InpEMADistML2)
+         effectiveLevels = 2;
+   }
+   
    //--- Build levels
-   g_levelCount = InpMaxLevels;
+   g_levelCount = effectiveLevels;
    ArrayResize(g_levels, g_levelCount);
    
    for(int i = 0; i < g_levelCount; i++)
@@ -698,6 +737,29 @@ void ProcessPosition(const MqlTick &tick)
 }
 
 //+------------------------------------------------------------------+
+//| Detect Trending Market                                           |
+//+------------------------------------------------------------------+
+// Returns true if last N bricks are in the same direction (trending)
+// Returns false if mixed directions (sideways/ranging)
+bool IsTrendingMarket()
+{
+   int n = ArraySize(g_bricks);
+   if(n < InpTrendBricks + 1)
+      return false;
+   
+   int dir = g_bricks[n - 1].direction;
+   if(dir == 0)
+      return false;
+   
+   for(int i = n - 2; i >= n - InpTrendBricks; i--)
+   {
+      if(g_bricks[i].direction != dir)
+         return false;
+   }
+   return true;
+}
+
+//+------------------------------------------------------------------+
 //| On Level Filled                                                  |
 //+------------------------------------------------------------------+
 void OnLevelFilled(int levelIdx, double fillPrice)
@@ -710,16 +772,30 @@ void OnLevelFilled(int levelIdx, double fillPrice)
    g_positionQty += g_levels[levelIdx].qty;
    g_avgPrice = g_positionCost / g_positionQty;
    
+   //--- Determine effective gain (adaptive or fixed)
+   double effectiveGain = InpGainIncrement;
+   if(InpUseAdaptiveGain)
+   {
+      if(IsTrendingMarket())
+         effectiveGain = InpGainTrend;
+      else
+         effectiveGain = InpGainLateral;
+   }
+   
    //--- Update target and stop
+   double effectiveStop = InpStopLossPts;
+   if(effectiveStop <= 0 && InpStopLossPct > 0)
+      effectiveStop = g_avgPrice * InpStopLossPct;
+   
    if(g_direction == DIR_LONG)
    {
-      g_targetPrice = g_avgPrice + InpGainIncrement;
-      g_stopPrice = g_avgPrice - InpStopLossPts;
+      g_targetPrice = g_avgPrice + effectiveGain;
+      g_stopPrice = g_avgPrice - effectiveStop;
    }
    else
    {
-      g_targetPrice = g_avgPrice - InpGainIncrement;
-      g_stopPrice = g_avgPrice + InpStopLossPts;
+      g_targetPrice = g_avgPrice - effectiveGain;
+      g_stopPrice = g_avgPrice + effectiveStop;
    }
    
    //--- Place next level if exists
@@ -798,6 +874,7 @@ void CloseAllPositions(string reason)
 void UpdateStats(double pnl, string reason, double exitPrice)
 {
    g_nTrades++;
+   g_dayTradeCount++;
    g_totalPnL += pnl;
    g_dailyPnL += pnl;
    

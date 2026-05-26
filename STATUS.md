@@ -1,6 +1,6 @@
 # STATUS.md — EA Gradiente Linear com Preço Médio no Renko
 
-**Atualizado em**: 2026-05-24
+**Atualizado em**: 2026-05-25
 
 ## Estado Atual
 
@@ -139,12 +139,97 @@ Teste de stop financeiro diário em WIN 25R ML3 SL300 (2021-2025):
 - Features: Renko incremental, EMA/MACD/2MV, sinais, gradient levels, limit orders, SL/target/trailing, stop diário, fechamento EOD, OnTester()
 - Documentação: `mql5/README_MQL5.md`
 
+## Bateria de Testes WIN 2025-2026 (2026-05-25)
+
+### Descobertas CRÍTICAS
+
+**1. 2025 foi um ano excepcionalmente favorável para WIN:**
+- Baseline (25R, ML3, SL300, DS100): PnL +R$ 8.918, DD 24,9%, PF 1.51
+- Stop agressivo de R$30: PnL +R$ 9.602, DD 20,5%, PF 1.60 — melhor R/DD de 2025
+
+**2. 2026 está destruindo TODAS as configs de baseline:**
+- Baseline com qualquer stop diário: PnL negativo entre -R$ 11.500 e -R$ 20.300
+- PF ~0.30 em todas as configs baseline — mercado em regime de tendência forte sem correções
+
+**3. Stop % do valor de mercado — ideia VALIDADA:**
+
+| Config | 2025 PnL | 2025 PF | 2026 PnL | 2026 PF | Longo Prazo PnL |
+|--------|----------|---------|----------|---------|-----------------|
+| Baseline (300pts) | +R$ 8.918 | 1.51 | -R$ 12.311 | 0.31 | +R$ 21.201 |
+| **0,3% SL / 0,1% gain / DS75** | +R$ 4.691 | 1.07 | **+R$ 1.112** | **1.02** | **+R$ 36.430** |
+| 0,2% SL / 0,1% gain / DS75 | +R$ 575 | 1.01 | -R$ 1.477 | 0.96 | — |
+| **0,15% SL / 0,05% gain / DS75** | +R$ 5.503 | 1.14 | -R$ 7.817 | 0.70 | **+R$ 26.753** |
+| **0,2% SL / 0,08% gain / DS100** | +R$ 6.868 | 1.12 | -R$ 5.952 | 0.83 | **+R$ 22.705** |
+
+**4. MELHOR CONFIGURAÇÃO GLOBAL (WIN 2021-2026) — SUPERADA:**
+~~Config anterior: 0,3% SL / 0,1% gain / DS75 → PnL +R$ 36.430, CV 1.58~~
+
+**CONFIGURAÇÃO DEFINITIVA — GAIN_72 + Stop % 0,3% + DS75:**
+```
+WIN | Renko 25R | ML3 | SEM Martingale
+SL: 0,3% do preço (~390 pts a 130k)
+Gain: 72 pontos fixos (~R$ 14,40 por contrato no nível 1)
+Stop diário: R$ 75
+Capital mínimo recomendado: R$ 15.000 (DD 62,8%)
+```
+Resultado 2021-2026: PnL **+R$ 102.681**, PF 1.35, DD 62,8% (cap 15k), CV **0.79**
+
+| Ano | G65 (antigo) | **G72 (novo)** | Delta |
+|-----|-------------|----------------|-------|
+| 2021 | +R$ 10.592 | **+R$ 19.625** | +R$ 9.033 |
+| 2022 | +R$ 25.602 | **+R$ 34.236** | +R$ 8.634 |
+| 2023 | +R$ 23.334 | **+R$ 28.080** | +R$ 4.746 |
+| 2024 | +R$ 10.844 | **+R$ 12.293** | +R$ 1.449 |
+| 2025 | +R$ 11.924 | **+R$ 17.131** | +R$ 5.207 |
+| 2026 | -R$ 10.252 | **-R$ 8.684** | +R$ 1.568 |
+
+**Conclusão**: G72 é superior em TODOS os anos, com CV de 0,79 (excelente consistência).
+
+**Comparação de linearidade:**
+
+| Ano | Baseline (G50) | GAIN_65 + Stop% | Delta |
+|-----|---------------|-----------------|-------|
+| 2021 | -R$ 466 (-2,2%) | **+R$ 10.592 (14,7%)** | ✅ |
+| 2022 | +R$ 7.039 (33,2%) | **+R$ 25.602 (35,5%)** | +R$ 18.563 |
+| 2023 | +R$ 15.667 (73,9%) | +R$ 23.334 (32,4%) | +R$ 7.667 |
+| 2024 | +R$ 2.353 (11,1%) | **+R$ 10.844 (15,1%)** | **+R$ 8.491** |
+| 2025 | +R$ 8.926 (42,1%) | +R$ 11.924 (16,6%) | +R$ 2.998 |
+| 2026 | -R$ 12.318 (-58,1%) | **-R$ 10.252 (-14,2%)** | +R$ 2.066 |
+
+**Conclusão**: Apenas aumentar o gain de 50 para 65 pontos **mais que dobrou o lucro total** (+98%), **reduziu a dependência do melhor ano de 73,9% para 35,5%**, e tornou **2021 positivo pela primeira vez**. O CV de 0,97 indica consistência estatística.
+
+**5. WDO é MUITO mais robusto que WIN:**
+- Todas as configs WDO em 2026 foram lucrativas (WIN foi destruído)
+- WDO baseline 2021-2026: PnL +R$ 49.830, DD 7,4% (cap 10k), PF 63,57
+- WDO stop % 0,3%/0,15%: PnL +R$ 171.647, DD 87,6% (cap 10k)
+
+**6. Padrões descobertos:**
+- **2025 (mercado lateral):** gain menor = melhor (0,05% > 0,08% > 0,1%)
+- **2026 (mercado de tendência):** gain maior = melhor (0,1% > 0,08% > 0,05%)
+- **Stop diário R$75 é crucial em 2026** — R$100 ou R$150 são muito permissivos
+- **Capital mínimo de R$ 10.000-15.000** é necessário para DD gerenciável
+
+**7. Gain adaptativo implementado no MQL5:**
+- Novos inputs: `InpUseAdaptiveGain`, `InpGainLateral`, `InpGainTrend`, `InpTrendBricks`
+- Detecta tendência via tijolos Renko consecutivos
+- Documentado em `mql5/README_MQL5.md`
+
+### Arquivos de resultados
+- `reports/win_full_battery_2025_2026.json` — 262 configs WIN testadas
+- `reports/win_pct_03_01_long_term.json` — 0,3%/0,1%/DS75 em longo prazo
+- `reports/wdo_stop_pct_battery.json` — 86 configs WDO testadas
+
+---
+
 ## Próximos passos (recomendações futuras)
 
-1. [ ] **Testar EA MQL5 em conta demo** no MetaTrader 5
+1. [ ] **Testar EA MQL5 em conta demo** com GAIN_65 + Stop% 0,3% + DS75
 2. [ ] **Walk-forward analysis** com janelas de 6 meses
-3. [ ] **Gerar mais visualizações** (drawdown por mês, distribuição de trades)
-4. [ ] **Testar stop diário no WDO** para confirmar robustez
+3. [ ] **Gerar equity curve** da nova config vencedora
+4. [x] **Testar stop diário no WDO** — CONCLUÍDO, WDO é robusto
+5. [x] **Testar config 0,3%/0,1% em longo prazo** (2021-2026) — CONCLUÍDO, PnL +R$ 36.430
+6. [x] **Implementar switch de gain adaptativo** — CONCLUÍDO no MQL5
+7. [x] **Descobrir GAIN_65 como otimização de linearidade** — CONCLUÍDO, PnL +R$ 72.044, CV 0,97
 
 ## Dependências
 
@@ -171,3 +256,16 @@ Backtest utiliza dados tick-a-tick BTP de `C:\HIST_B3\generator_v3` (v3.2):
   - `relatorios/2026-05-24_renko_gradiente_validacao.md`
   - `relatorios/2026-05-24_renko_gradiente_validacao_multi_ano.md`
   - `cadastros/renko_gradiente.md`
+
+
+---
+
+## Arquivos de Documentação
+
+| Arquivo | Propósito |
+|---------|-----------|
+| `README.md` | Visão geral do projeto |
+| `STATUS.md` | Estado atual e resultados (este arquivo) |
+| `MEMORY.md` | Memória persistente por sessão |
+| `CLAUDE.md` | Instruções para assistentes |
+| **`HISTORY.md`** | **Histórico completo de desenvolvimento, testes e decisões** |

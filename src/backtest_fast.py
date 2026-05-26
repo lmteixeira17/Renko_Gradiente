@@ -15,8 +15,10 @@ def _simulate_day(
     base_qty: int,
     price_increment: float,
     gain_increment: float,
+    gain_increment_pct: float,
     max_levels: int,
     stop_loss_pts: float,
+    stop_loss_pct: float,
     tick_value: float,
     martingale: bool,
     slippage_pts: float,
@@ -25,6 +27,7 @@ def _simulate_day(
     preservation_levels: int,
     trailing_stop_value: float,
     daily_stop_loss: float,
+    max_trades_per_day: int,
     start_time_ms: int,
     end_time_ms: int,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -73,10 +76,16 @@ def _simulate_day(
                     if daily_pnl <= -daily_stop_loss:
                         continue
                     sig = entry_signals[bi]
-                    if sig != 0:
+                    if sig != 0 and (max_trades_per_day == 0 or trade_count < max_trades_per_day):
                         direction = sig
                         n_levels = max_levels
                         anchor = price
+                        effective_gain = gain_increment
+                        effective_stop = stop_loss_pts
+                        if gain_increment_pct > 0.0:
+                            effective_gain = anchor * gain_increment_pct
+                        if stop_loss_pct > 0.0:
+                            effective_stop = anchor * stop_loss_pct
                         for li in range(n_levels):
                             if direction == 1:
                                 level_prices[li] = anchor - li * price_increment
@@ -110,16 +119,16 @@ def _simulate_day(
                 position_cost += fill_price * level_qtys[li]
                 position_qty += level_qtys[li]
                 avg_price = position_cost / position_qty
-                target_price = avg_price + gain_increment
-                stop_price = avg_price - stop_loss_pts
+                target_price = avg_price + effective_gain
+                stop_price = avg_price - effective_stop
             elif direction == -1 and price >= level_prices[li]:
                 fill_price = level_prices[li] + slippage_pts
                 level_filled[li] = True
                 position_cost += fill_price * level_qtys[li]
                 position_qty += level_qtys[li]
                 avg_price = position_cost / position_qty
-                target_price = avg_price - gain_increment
-                stop_price = avg_price + stop_loss_pts
+                target_price = avg_price - effective_gain
+                stop_price = avg_price + effective_stop
 
             if preservation_stop and position_qty > 0 and not breakeven_stop:
                 filled_levels = 0
@@ -145,11 +154,16 @@ def _simulate_day(
         if unreal > highest_profit:
             highest_profit = unreal
 
-        if trailing_stop_value > 0 and highest_profit >= trailing_stop_value and not breakeven_stop:
+        # REAL trailing stop: follows profit with a gap of trailing_stop_value
+        if trailing_stop_value > 0 and highest_profit >= trailing_stop_value:
             if direction == 1:
-                stop_price = avg_price
+                new_stop = avg_price + (highest_profit - trailing_stop_value) / (position_qty * tick_value)
+                if new_stop > stop_price:
+                    stop_price = new_stop
             else:
-                stop_price = avg_price
+                new_stop = avg_price - (highest_profit - trailing_stop_value) / (position_qty * tick_value)
+                if new_stop < stop_price:
+                    stop_price = new_stop
 
         hit_target = False
         exit_p = 0.0
@@ -249,8 +263,10 @@ def simulate_day_fast(
     base_qty: int = 1,
     price_increment: float = 100.0,
     gain_increment: float = 50.0,
+    gain_increment_pct: float = 0.0,
     max_levels: int = 5,
     stop_loss_pts: float = 1000.0,
+    stop_loss_pct: float = 0.0,
     tick_value: float = 0.20,
     martingale: bool = True,
     slippage_pts: float = 0.0,
@@ -259,14 +275,15 @@ def simulate_day_fast(
     preservation_levels: int = 3,
     trailing_stop_value: float = 0.0,
     daily_stop_loss: float = 999999.0,
+    max_trades_per_day: int = 0,
     start_time_ms: int = 0,
     end_time_ms: int = 86400000,
 ):
     return _simulate_day(
         prices, times, brick_idx, entry_signals,
-        base_qty, price_increment, gain_increment, max_levels,
-        stop_loss_pts, tick_value, martingale,
+        base_qty, price_increment, gain_increment, gain_increment_pct, max_levels,
+        stop_loss_pts, stop_loss_pct, tick_value, martingale,
         slippage_pts, emolumentos_pct,
         preservation_stop, preservation_levels, trailing_stop_value,
-        daily_stop_loss, start_time_ms, end_time_ms,
+        daily_stop_loss, max_trades_per_day, start_time_ms, end_time_ms,
     )

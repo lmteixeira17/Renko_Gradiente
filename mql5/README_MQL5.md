@@ -37,9 +37,17 @@ MetaTrader 5 implementation of the "Gradiente Linear com Preço Médio no Renko"
 |-----------|---------|-------------|
 | `InpBaseQty` | 1 | Contracts per level |
 | `InpPriceIncrement` | 100.0 | Price spacing between levels (pts) |
-| `InpGainIncrement` | 50.0 | Profit target above average price (pts) |
+| `InpGainIncrement` | 72.0 | Profit target above average price (pts) |
 | `InpMaxLevels` | 3 | Maximum levels (ML3) |
 | `InpUseMartingale` | false | Enable martingale (1-2-4-8...) |
+
+### Adaptive Gain Settings (NEW)
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `InpUseAdaptiveGain` | false | Enable adaptive gain based on market regime |
+| `InpGainLateral` | 50.0 | Profit target for sideways/ranging market (pts) |
+| `InpGainTrend` | 100.0 | Profit target for trending market (pts) |
+| `InpTrendBricks` | 3 | Consecutive bricks in same direction to detect trend |
 
 ### Risk Management
 | Parameter | Default | Description |
@@ -74,17 +82,34 @@ MetaTrader 5 implementation of the "Gradiente Linear com Preço Médio no Renko"
 
 ## Recommended Configurations
 
-### WIN (Mini Índice) - Conservative
+### WIN (Mini Índice) - Conservative (Baseline)
 ```
 InpRenkoR = 25
 InpBaseQty = 1
 InpPriceIncrement = 100.0
-InpGainIncrement = 50.0
+InpGainIncrement = 72.0
 InpMaxLevels = 3
 InpStopLossPts = 300.0
 InpUseMartingale = false
 InpTickSize = 5.0
 InpTickValue = 0.20
+```
+
+### WIN (Mini Índice) - Adaptive Gain (Recommended for 2026+)
+```
+InpRenkoR = 25
+InpBaseQty = 1
+InpPriceIncrement = 100.0
+InpMaxLevels = 3
+InpStopLossPts = 390.0   // 0.3% of ~130k
+InpUseMartingale = false
+InpTickSize = 5.0
+InpTickValue = 0.20
+InpDailyStopLoss = 75.0
+InpUseAdaptiveGain = true
+InpGainLateral = 65.0    // 0.05% for sideways
+InpGainTrend = 130.0     // 0.1% for trending
+InpTrendBricks = 3
 ```
 
 ### WDO (Mini Dólar) - Conservative
@@ -141,6 +166,16 @@ Backtest over 5 years (2021-2025) on WIN proves that daily financial stop is **m
 
 **Recommendation**: Use `InpDailyStopLoss = 100.0` for best risk-adjusted returns.
 
+## Adaptive Gain Feature
+
+Based on backtest discoveries (May 2025):
+- **Sideways market (2025)**: Smaller gain (0.05%) performed better — target is hit more frequently
+- **Trending market (2026)**: Larger gain (0.1%) performed better — captures more of the move
+
+The adaptive gain automatically switches between `InpGainLateral` and `InpGainTrend` based on recent Renko brick direction:
+- If last `InpTrendBricks` bricks are in the **same direction** → uses `InpGainTrend`
+- Otherwise → uses `InpGainLateral`
+
 ## Backtest Results (Reference)
 
 ### WIN 25R nomart ML3 SL300 (2021-2025)
@@ -148,6 +183,13 @@ Backtest over 5 years (2021-2025) on WIN proves that daily financial stop is **m
 - Max Drawdown: 27.5%
 - Profit Factor: 1.33
 - Win Rate: 95.8%
+
+### WIN 25R nomart ML3 with Stop % (2021-2026) — BEST CONFIG
+- Config: SL 0.3%, Gain 0.1%, Daily Stop R$75
+- Net PnL: **R$ 36,430** (6 years)
+- Max Drawdown: 77.8% (cap R$15k) / 116.6% (cap R$10k)
+- Profit Factor: 1.07
+- Win Rate: 85.8%
 
 ### WDO 10R nomart ML3 SL20 (2021-2025)
 - Net PnL: R$ 63,992

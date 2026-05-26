@@ -104,6 +104,32 @@ def run_day_fast(asset: str, day: str, config: dict) -> BacktestResult:
         pkt.close()
         return BacktestResult(asset=asset, start_date=day, end_date=day)
 
+    # Filtro de distancia EMA (nao opera quando mercado muito esticado)
+    max_ema_dist = config.get("max_ema_distance_pts", 0.0)
+    if max_ema_dist > 0 and len(bricks) >= 73:
+        brick_closes = np.array([b.close_price for b in bricks], dtype=np.float64)
+        ema21_arr = ema(brick_closes, 21)
+        ema72_arr = ema(brick_closes, 72)
+        for i in range(len(bricks)):
+            if entry_signals[i] != 0:
+                dist = abs(ema21_arr[i] - ema72_arr[i])
+                if dist > max_ema_dist:
+                    entry_signals[i] = 0
+
+    # Niveis dinamicos baseados em distancia EMA
+    ema_dist_ml2 = config.get("ema_dist_ml2_threshold", 0.0)
+    ema_dist_ml1 = config.get("ema_dist_ml1_threshold", 0.0)
+    effective_max_levels = config.get("max_levels", 3)
+    if len(bricks) >= 73 and (ema_dist_ml2 > 0 or ema_dist_ml1 > 0):
+        brick_closes = np.array([b.close_price for b in bricks], dtype=np.float64)
+        ema21_arr = ema(brick_closes, 21)
+        ema72_arr = ema(brick_closes, 72)
+        last_dist = abs(ema21_arr[-1] - ema72_arr[-1])
+        if ema_dist_ml1 > 0 and last_dist > ema_dist_ml1:
+            effective_max_levels = 1
+        elif ema_dist_ml2 > 0 and last_dist > ema_dist_ml2:
+            effective_max_levels = 2
+
     # Map ticks to bricks using searchsorted
     brick_end_times = np.array([b.end_time_ms for b in bricks], dtype=np.int64)
     brick_idx = np.searchsorted(brick_end_times, times, side='right')
@@ -126,8 +152,10 @@ def run_day_fast(asset: str, day: str, config: dict) -> BacktestResult:
         base_qty=config.get("base_qty", 1),
         price_increment=config.get("price_increment", 100.0),
         gain_increment=config.get("gain_increment", 50.0),
-        max_levels=config.get("max_levels", 5),
+        gain_increment_pct=config.get("gain_increment_pct", 0.0),
+        max_levels=effective_max_levels,
         stop_loss_pts=config.get("stop_loss_pts", 1000.0),
+        stop_loss_pct=config.get("stop_loss_pct", 0.0),
         tick_value=tick_value,
         martingale=config.get("martingale", True),
         slippage_pts=config.get("slippage_pts", 2.0),
@@ -136,6 +164,7 @@ def run_day_fast(asset: str, day: str, config: dict) -> BacktestResult:
         preservation_levels=config.get("preservation_levels", 3),
         trailing_stop_value=config.get("trailing_stop_value", 0.0),
         daily_stop_loss=config.get("daily_stop_loss", 999999.0),
+        max_trades_per_day=config.get("max_trades_per_day", 0),
         start_time_ms=config.get("start_time_ms", 0),
         end_time_ms=config.get("end_time_ms", 86400000),
     )

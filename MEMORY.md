@@ -4,6 +4,71 @@
 
 ---
 
+## Sessão 2026-05-25 — Bateria Completa WIN 2025-2026
+
+### O que foi feito
+- Implementado stop gain/loss como % do valor de mercado no engine Numba
+- Rodada bateria massiva de 262 configs em 2025, 2026 e longo prazo 2021-2026
+- Testados stops diários: R$30, R$40, R$50, R$60, R$75, R$100, R$150, R$200
+- Testados capitais de referência: R$5k, R$10k, R$15k
+- Grid de stop %: SL 0,1%-0,3%, gain 0,05%-0,1%
+- Arquivo de resultados: `reports/win_full_battery_2025_2026.json`
+
+### Decisões tomadas
+1. **Stop % do valor de mercado é viável e superior em alguns cenários**: a ideia do usuário se validou. SL 0,15%-0,3% adaptativo superou o baseline fixo em longo prazo.
+2. **Capital mínimo deve ser R$ 10.000-15.000**: com R$ 5.000, o DD em longo prazo é catastrófico (>150%) mesmo nas melhores configs.
+3. **2026 é um ano adverso para a estratégia**: todas as configs baseline foram destruídas. Apenas 0,3%/0,1%/DS75 sobreviveu com lucro modesto.
+4. **Gain deve ser adaptativo**: em mercado lateral (2025), gain menor é melhor. Em tendência (2026), gain maior é melhor.
+
+### Resultado Passo 1 — 0,3%/0,1%/DS75 em longo prazo 2021-2026
+- **PnL: +R$ 36.430** — MAIOR lucro de TODOS os testes!
+- PF: 1,07 | WR: 85,8% | Trades: 10.846
+- DD: R$ 11.663 (233% cap 5k / 117% cap 10k / **78% cap 15k**)
+- **Conclusão: Com R$ 15.000, esta é a MELHOR configuração para WIN**
+
+### Resultado Passo 2 — WDO com stop % e stop diário
+- **WDO é MUITO mais robusto que WIN**
+- Todas as configs WDO em 2026 foram lucrativas (WIN foi destruído)
+- WDO baseline 2021-2026: PnL +R$ 49.830, DD 7,4% (cap 10k), PF 63,57
+- WDO stop % 0,3%/0,15%/DS100: PnL +R$ 171.647, DD 87,6% (cap 10k), PF 1,22
+- **Recomendação: WDO baseline continua sendo a melhor configuração**
+
+### Resultado Passo 3 — Gain adaptativo no MQL5
+- Implementado `InpUseAdaptiveGain`, `InpGainLateral`, `InpGainTrend`, `InpTrendBricks`
+- Função `IsTrendingMarket()` detecta tendência via tijolos Renko consecutivos
+- **Sem backtest em MQL5** — precisa ser validado no Strategy Tester do MT5
+- Código atualizado em `mql5/EA_Gradiente_Renko.mq5` e documentado em `mql5/README_MQL5.md`
+
+### Resultados chave
+
+#### 2025 (ano favorável)
+| Config | PnL | DD (cap 5k) | PF | R/DD |
+|--------|-----|-------------|-----|------|
+| Baseline DS100 | +R$ 8.918 | 24,9% | 1,51 | 7,15 |
+| Stop R$30 | +R$ 9.602 | 20,5% | 1,60 | 9,38 |
+| **0,3% SL / 0,05% gain / DS100** | **+R$ 13.962** | 40,0% | 1,32 | 6,98 |
+| 0,2% SL / 0,05% gain / DS150 | +R$ 10.615 | 25,1% | 1,22 | 8,44 |
+
+#### 2026 (ano adverso) — ÚNICA lucrativa:
+| Config | PnL | DD (cap 5k) | PF |
+|--------|-----|-------------|-----|
+| **0,3% SL / 0,1% gain / DS75** | **+R$ 1.112** | 75,8% | **1,02** |
+| Todas as outras 87 configs | Negativo | >65% | <1,00 |
+
+#### Longo prazo 2021-2026
+| Config | PnL | DD (cap 15k) | PF | R/DD |
+|--------|-----|--------------|-----|------|
+| Baseline DS100 | +R$ 21.201 | 82,2% | 1,14 | 1,72 |
+| **0,15% SL / 0,05% gain / DS75** | **+R$ 26.753** | **58,6%** | **1,08** | **3,04** |
+| **0,2% SL / 0,08% gain / DS100** | **+R$ 22.705** | **53,0%** | **1,05** | **2,85** |
+
+### Problemas em aberto
+- 2026 destruiu todas as configs baseline — mercado em regime de tendência forte
+- Necessário capital maior (R$ 10k-15k) para DD gerenciável
+- Gain ideal parece depender do regime de mercado (lateral vs tendência)
+
+---
+
 ## Sessão 2026-05-24
 
 ### O que foi feito
@@ -48,9 +113,10 @@
 ### Próximos passos pendentes
 1. [x] Testar ML2 + SL200 em 5 anos (em andamento, resultados ruins)
 2. [x] Corrigir WDO com Renko 10R (CONCLUÍDO — resultado excelente)
-3. [ ] Implementar stop financeiro diário rigoroso
-4. [ ] Port para MQL5 ou NTSL
+3. [x] Implementar stop financeiro diário rigoroso (CONCLUÍDO — R$100/dia vencedor)
+4. [x] Port para MQL5 (CONCLUÍDO)
 5. [ ] Walk-forward analysis
+6. [ ] Testar WDO com stop diário
 
 ### Arquivos importantes gerados
 - `reports/robustness_full_2021_2025.json` — resultado completo multi-ano
@@ -66,3 +132,27 @@
 - Dataset BTP: `C:\HIST_B3\generator_v3` (não modificar)
 - Especificação: `ea_gradiente_renko.agent.final.pdf`
 - Central de acompanhamento: `_Testes_e_Padroes`
+
+
+---
+
+## Sessão 2026-05-26 — Histórico Completo + Deploy MQL5
+
+### O que foi feito
+- Criado `HISTORY.md` — documento abrangente com TODO o histórico de testes, descobertas, rejeições e decisões
+- Corrigido bug de compilação MQL5: variável `color` renomeada para `brickColor` (palavra reservada em MQL5)
+- EA compilado com sucesso: 0 erros, 0 warnings, 865ms
+- Arquivo `.ex5` gerado (56.8 KB) no terminal MT5
+
+### Decisões tomadas
+1. **Documentar tudo em HISTORY.md**: manter registro permanente de todas as 262+ configs testadas, o que funcionou e o que não funcionou
+2. **Configuração definitiva para deploy**: GAIN_72 + SL 0.3% + DS75
+3. **Próximo passo é demo trading**: rodar 3-6 meses em conta demo XP
+
+### Arquivos criados/modificados
+- `HISTORY.md` (novo) — 23.200 bytes
+- `STATUS.md` (atualizado) — referência ao HISTORY.md
+- `mql5/EA_Gradiente_Renko.mq5` (corrigido) — bug `color` → `brickColor`
+
+### Estado do deploy
+✅ EA compilado e pronto para anexar ao gráfico WIN$N no MT5 Demo
